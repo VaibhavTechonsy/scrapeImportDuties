@@ -99,7 +99,10 @@ async function coutrywise_export() {
 
   console.log(validHSNCodes);
 
-  const browser = await puppeteer.launch({ headless: true });
+  const browser = await puppeteer.launch({
+  headless: true,
+  args: ['--no-sandbox', '--disable-setuid-sandbox']
+});
   const page = await browser.newPage();
   await page.setDefaultNavigationTimeout(50000);
   
