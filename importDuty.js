@@ -1,68 +1,3 @@
-// import puppeteer from 'puppeteer';
-// import { createClient } from '@supabase/supabase-js';
-// import 'dotenv/config';
-// import fs from 'fs';
-
-// const supabase = createClient(
-//   process.env.SUPABASE_URL,
-//   process.env.SUPABASE_KEY
-// );
-
-// async function coutrywise_export() {
-//   const countries = JSON.parse(fs.readFileSync('countries.json', 'utf8'));
-
-//   const newCountries = countries.map(country => {
-//     if (country.Name) {
-//       country.Name = country.Name.replace(/\s+/g, '_');
-//     }
-//     return country;
-//   });
-
-//   const { data: hsnData, error } = await supabase
-//     .from('market_prices')
-//     .select('hsn_code');
-
-//   if (error) {
-//     console.error('Supabase fetch error:', error.message);
-//     return;
-//   }
-
-//   const validHSNCodes = hsnData
-//   .map(item => item.hsn_code.toString())
-//   .filter(code => code.length === 5 || code.length === 6)
-//   .map(code => code.length === 5 ? '0' + code : code);
-
-//   console.log(validHSNCodes);
-
-//   const browser = await puppeteer.launch({ headless: true });
-//   const page = await browser.newPage();
-//   await page.setDefaultNavigationTimeout(50000);
-
-//   for (const hsn of validHSNCodes) {
-//     for (const country of newCountries) {
-//       const url = `https://www.macmap.org/en//query/results?reporter=${country.Code}&partner=699&product=${hsn}&level=6`;
-//       try {
-//         await page.goto(url, { waitUntil: 'networkidle2' });
-//         const textSelector = await page.waitForSelector(
-//           '#customs-duties-results-section .customs-tariff-info .customs-tariff-rate-details',
-//           { timeout: 30000 }
-//         );
-//         const data = await textSelector.evaluate(el => el.textContent);
-//         console.log(`HSN: ${hsn}, Code: ${country.Code}, Name: ${country.Name}, Data: ${data.trim()}`);
-//       } catch (err) {
-//         console.error(`Error for HSN: ${hsn}, Code: ${country.Code}, Name: ${country.Name} =>`, err.message);
-//         continue;
-//       }
-//     }
-//   }
-
-//   await browser.close();
-// }
-
-// coutrywise_export();
-
-
-
 import puppeteer from 'puppeteer';
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
@@ -82,17 +17,35 @@ async function coutrywise_export() {
     }
     return country;
   });
+  console.log('fetch HSN');
 
-  const { data: hsnData, error } = await supabase
-    .from('market_prices')
-    .select('hsn_code');
-
-  if (error) {
-    console.error('Supabase fetch error:', error.message);
-    return;
+  let allHsnData = [];
+  let start = 0;
+  const batchSize = 1000; // Max allowed by Supabase
+  let hasMore = true;
+  
+  while (hasMore) {
+      const { data: hsnData, error } = await supabase
+          .from('market_prices')
+          .select('hsn_code')
+          .range(start, start + batchSize - 1); // Fetch 1000 at a time
+  
+      if (error) {
+          console.error('Supabase fetch error:', error.message);
+          return;
+      }
+  
+      if (!hsnData?.length) {
+          hasMore = false; // Stop if no more data
+      } else {
+          allHsnData = [...allHsnData, ...hsnData];
+          start += batchSize; // Move to next batch
+      }
   }
+  
+  console.log('DONE: ', JSON.stringify(allHsnData));
 
-  const validHSNCodes = hsnData
+  const validHSNCodes = allHsnData
     .map(item => item.hsn_code.toString())
     .filter(code => code.length === 5 || code.length === 6)
     .map(code => code.length === 5 ? '0' + code : code);
